@@ -2,6 +2,8 @@
 
 import { useState, FormEvent, ChangeEvent } from "react";
 import NoSSR from "../../../components/NoSSR";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 type FormData = {
   position: string;
@@ -26,6 +28,9 @@ type FormErrors = {
 };
 
 export default function CareersPage() {
+  const submitApplication = useMutation(api.jobApplications.submitApplication);
+  const generateUploadUrl = useMutation(api.jobApplications.generateUploadUrl);
+
   // Use traditional state for a simpler implementation
   const [formData, setFormData] = useState<FormData>({
     position: "",
@@ -211,18 +216,43 @@ export default function CareersPage() {
     setIsSubmitting(true);
 
     try {
-      // Simulate submission with a delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log("Application data:", {
+      let resumeFileId = undefined;
+      let resumeFileName = undefined;
+
+      // Upload resume if provided
+      if (formData.resume) {
+        // Get upload URL from Convex
+        const uploadUrl = await generateUploadUrl();
+        
+        // Upload the file
+        const result = await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": formData.resume.type,
+          },
+          body: formData.resume,
+        });
+
+        if (!result.ok) {
+          throw new Error("Failed to upload resume");
+        }
+
+        // Get the storage ID from the response
+        resumeFileId = await result.text();
+        resumeFileName = formData.resume.name;
+      }
+
+      // Submit application to Convex
+      await submitApplication({
         position: formData.position,
         location: formData.location,
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
-        resumeName: formData.resume?.name,
         additionalDetails: formData.additionalDetails,
+        resumeFileId,
+        resumeFileName,
       });
 
       setSubmitted(true);
