@@ -1,0 +1,3 @@
+# Netlify redirects file
+# This ensures that form submissions are properly handled
+/api/*  /.netlify/functions/:splat  200

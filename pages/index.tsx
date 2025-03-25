@@ -1,8 +1,30 @@
 import { useState } from 'react';
-import Head from 'next/head';
+import Layout from '../components/Layout';
+
+interface FormData {
+  position: string;
+  location: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  resume: File | null;
+  additionalDetails: string;
+}
+
+interface FormErrors {
+  position?: string;
+  location?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  resume?: string;
+  additionalDetails?: string;
+}
 
 export default function Home() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     position: '',
     location: '',
     firstName: '',
@@ -10,78 +32,222 @@ export default function Home() {
     email: '',
     phone: '',
     resume: null,
+    additionalDetails: '',
   });
 
+  const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFileLoading, setIsFileLoading] = useState(false);
 
   const positions = [
     {
       title: 'Store Manager',
       description: 'Lead and manage store operations, drive sales performance, and develop a high-performing team. Responsible for inventory management, customer satisfaction, and achieving store targets.',
+      type: 'Full-time'
     },
     {
       title: 'Retail Sales Representative',
       description: 'Provide exceptional customer service while selling wireless products and services. Responsible for meeting sales goals, processing transactions, and maintaining store appearance.',
+      type: 'Full-time'
     },
     {
       title: 'Customer Service Representative',
       description: 'Assist customers with account inquiries, technical support, and service issues. Process payments, explain billing details, and ensure positive customer experiences.',
+      type: 'Part-time'
     },
   ];
 
   const locations = [
-    'Atlanta, GA',
-    'Dallas, TX',
-    'Houston, TX',
-    'Miami, FL',
-    'Orlando, FL',
-    'Phoenix, AZ',
-    'San Antonio, TX',
-    'Tampa, FL',
+    'ALEXANDRIA, VA',
+    'BROOKSVILLE, FL',
+    'CHANTILLY, VA',
+    'CHARLES TOWN, WV',
+    'CHIEFLAND, FL',
+    'CENTREVILLE, VA',
+    'CULPEPER, VA',
+    'EUSTIS, FL',
+    'FAIRFAX, VA',
+    'FORT PIERCE, FL',
+    'GAINESVILLE, FL',
+    'HAGERSTOWN, MD',
+    'HOMOSASSA, FL',
+    'INVERNESS, FL',
+    'LEESBURG, FL',
+    'LEESBURG, VA',
+    'MARTINSBURG, WV',
+    'MIAMI, FL',
+    'MIAMI BEACH, FL',
+    'MANASSAS, VA',
+    'NORTH PALM BEACH, FL',
+    'NORTH LAUDERDALE, FL',
+    'PINELLAS PARK, FL',
+    'PEMBROKE PINES, VA',
+    'SPRINGFIELD, VA',
+    'ST PETERSBURG, FL',
+    'SPRING HILL, FL',
+    'STERLING, VA',
+    'TAMPA, FL',
+    'TAVARES, FL',
+    'WILDWOOD, FL',
+    'WINCHESTER, VA',
+    'WOODLAND PARK, FL',
   ];
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
       [name]: value,
     });
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: null
+      });
+    }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    
+    if (file) {
+      setIsFileLoading(true);
+      
+      // Validate file type
+      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!validTypes.includes(file.type)) {
+        setErrors({
+          ...errors,
+          resume: 'Please upload a PDF, DOC, or DOCX file'
+        });
+        e.target.value = null; // Clear the file input
+        setIsFileLoading(false);
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors({
+          ...errors,
+          resume: 'File size must be less than 5MB'
+        });
+        e.target.value = null; // Clear the file input
+        setIsFileLoading(false);
+        return;
+      }
+    }
+    
     setFormData({
       ...formData,
-      resume: e.target.files[0],
+      resume: file,
     });
+    
+    // Clear error when user selects a valid file
+    if (errors.resume) {
+      setErrors({
+        ...errors,
+        resume: null
+      });
+    }
+    
+    setIsFileLoading(false);
+  };
+  
+  const validateForm = () => {
+    const newErrors: FormErrors = {};
+    
+    // Validate required fields
+    if (!formData.position) newErrors.position = 'Position is required';
+    if (!formData.location) newErrors.location = 'Location is required';
+    if (!formData.firstName) newErrors.firstName = 'First name is required';
+    if (!formData.lastName) newErrors.lastName = 'Last name is required';
+    
+    // Validate email format
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    // Validate phone format (improved validation)
+    if (!formData.phone) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!/^(\+\d{1,3})?[-.\s]?\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})$/.test(formData.phone)) {
+      newErrors.phone = 'Please enter a valid phone number';
+    }
+    
+    // Validate resume
+    if (!formData.resume) newErrors.resume = 'Resume is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // In a real application, you would send this data to your server
-    console.log('Form submitted:', formData);
-    setSubmitted(true);
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Create FormData object to handle file uploads
+      const formDataToSend = new FormData();
+      formDataToSend.append('position', formData.position);
+      formDataToSend.append('location', formData.location);
+      formDataToSend.append('firstName', formData.firstName);
+      formDataToSend.append('lastName', formData.lastName);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('additionalDetails', formData.additionalDetails);
+      
+      // Append resume file if it exists
+      if (formData.resume) {
+        formDataToSend.append('resume', formData.resume);
+      }
+
+      // Send form data to our API endpoint
+      const response = await fetch('/api/sendEmail', {
+        method: 'POST',
+        body: formDataToSend,
+      });
+
+      if (response.ok) {
+        console.log('Application submitted successfully');
+        setSubmitted(true);
+        // Reset form data
+        setFormData({
+          position: '',
+          location: '',
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          resume: null,
+          additionalDetails: '',
+        });
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to submit application:', errorData);
+        alert('There was an error submitting your application. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert('There was an error submitting your application. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Head>
-        <title>Careers | Metro Wireless Plus</title>
-        <meta name="description" content="Join our team at Metro Wireless Plus" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
-      <header className="bg-[#e20074] text-white py-6 text-center">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col items-center justify-center">
-            <h1 className="text-3xl font-bold">Metro Wireless Plus</h1>
-            <p className="text-lg">Authorized Dealer for Metro by T-Mobile</p>
-            <h2 className="text-2xl font-bold mt-4">We're Hiring!</h2>
-            <p>Join our growing team today</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
+    <Layout title="Careers | Metro Wireless Plus" description="Join our team at Metro Wireless Plus">
+      <div className="container mx-auto px-4 py-8">
         {submitted ? (
           <div className="bg-white p-8 rounded-lg shadow-md max-w-3xl mx-auto">
             <div className="text-center">
@@ -118,7 +284,10 @@ export default function Home() {
               <div className="grid md:grid-cols-3 gap-6">
                 {positions.map((position, index) => (
                   <div key={index} className="bg-white p-6 rounded-lg shadow-md text-center">
-                    <h3 className="text-xl font-semibold text-[#e20074] mb-2">{position.title}</h3>
+                    <div className="flex items-center justify-center mb-2">
+                      <h3 className="text-xl font-semibold text-[#e20074] mr-2">{position.title}</h3>
+                      <span className="bg-[#e20074] text-white text-xs px-2 py-1 rounded-full">{position.type}</span>
+                    </div>
                     <p className="text-gray-600 mb-4">{position.description}</p>
                     <div className="flex items-center justify-center text-gray-500">
                       <svg 
@@ -150,7 +319,8 @@ export default function Home() {
 
             <section className="bg-white p-8 rounded-lg shadow-md max-w-3xl mx-auto">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Apply Now</h2>
-              <form onSubmit={handleSubmit}>
+              <form name="job-application" method="POST" data-netlify="true" data-netlify-honeypot="bot-field" encType="multipart/form-data" onSubmit={handleSubmit}>
+                <input type="hidden" name="form-name" value="job-application" />
                 <div className="grid md:grid-cols-2 gap-6 mb-6">
                   <div>
                     <label htmlFor="position" className="block text-gray-700 font-medium mb-2 text-center">
@@ -161,8 +331,7 @@ export default function Home() {
                       name="position"
                       value={formData.position}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center"
+                      className={`w-full px-4 py-2 border ${errors.position ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center`}
                     >
                       <option value="">Select a position</option>
                       {positions.map((position, index) => (
@@ -171,6 +340,7 @@ export default function Home() {
                         </option>
                       ))}
                     </select>
+                    {errors.position && <p className="text-red-500 text-sm mt-1">{errors.position}</p>}
                   </div>
                   <div>
                     <label htmlFor="location" className="block text-gray-700 font-medium mb-2 text-center">
@@ -181,8 +351,7 @@ export default function Home() {
                       name="location"
                       value={formData.location}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center"
+                      className={`w-full px-4 py-2 border ${errors.location ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center`}
                     >
                       <option value="">Select a location</option>
                       {locations.map((location, index) => (
@@ -191,6 +360,7 @@ export default function Home() {
                         </option>
                       ))}
                     </select>
+                    {errors.location && <p className="text-red-500 text-sm mt-1">{errors.location}</p>}
                   </div>
                 </div>
 
@@ -205,9 +375,9 @@ export default function Home() {
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center"
+                      className={`w-full px-4 py-2 border ${errors.firstName ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center`}
                     />
+                    {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>}
                   </div>
                   <div>
                     <label htmlFor="lastName" className="block text-gray-700 font-medium mb-2 text-center">
@@ -219,9 +389,9 @@ export default function Home() {
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center"
+                      className={`w-full px-4 py-2 border ${errors.lastName ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center`}
                     />
+                    {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>}
                   </div>
                 </div>
 
@@ -236,9 +406,9 @@ export default function Home() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center"
+                      className={`w-full px-4 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center`}
                     />
+                    {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
                   </div>
                   <div>
                     <label htmlFor="phone" className="block text-gray-700 font-medium mb-2 text-center">
@@ -250,9 +420,10 @@ export default function Home() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center"
+                      placeholder="(123) 456-7890"
+                      className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074] text-center`}
                     />
+                    {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
                   </div>
                 </div>
 
@@ -267,35 +438,60 @@ export default function Home() {
                       name="resume"
                       onChange={handleFileChange}
                       accept=".pdf,.doc,.docx"
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074]"
+                      className={`w-full px-4 py-2 border ${errors.resume ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074]`}
+                      disabled={isFileLoading}
                     />
+                    {isFileLoading && (
+                      <div className="ml-2">
+                        <svg className="animate-spin h-5 w-5 text-[#e20074]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    )}
                   </div>
+                  {errors.resume && <p className="text-red-500 text-sm mt-1 text-center">{errors.resume}</p>}
+                </div>
+
+                <div className="mb-6">
+                  <label htmlFor="additionalDetails" className="block text-gray-700 font-medium mb-2 text-center">
+                    Additional Details (Optional)
+                  </label>
+                  <textarea
+                    id="additionalDetails"
+                    name="additionalDetails"
+                    value={formData.additionalDetails}
+                    onChange={handleInputChange}
+                    rows={4}
+                    placeholder="Any additional information you'd like to share..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#e20074]"
+                  />
                 </div>
 
                 <div className="text-center">
                   <button
                     type="submit"
-                    className="bg-[#e20074] text-white px-8 py-3 rounded-md hover:bg-[#b8005f] transition-colors font-medium"
+                    disabled={isSubmitting}
+                    className={`${isSubmitting ? 'bg-gray-400' : 'bg-[#e20074] hover:bg-[#b8005f]'} text-white px-8 py-3 rounded-md transition-colors font-medium flex items-center justify-center mx-auto`}
                   >
-                    Submit Application
+                    {isSubmitting ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Submitting...
+                      </>
+                    ) : (
+                      'Submit Application'
+                    )}
                   </button>
                 </div>
               </form>
             </section>
           </>
         )}
-      </main>
-
-      <footer className="bg-gray-800 text-white py-8 text-center">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col items-center">
-            <p className="text-lg font-semibold">Metro Wireless Plus</p>
-            <p>Authorized Dealer for Metro by T-Mobile</p>
-            <p className="mt-4">&copy; {new Date().getFullYear()} Metro Wireless Plus. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
-    </div>
+      </div>
+    </Layout>
   );
 }
